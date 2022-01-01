@@ -1,6 +1,10 @@
 # NeosNoResetScale
 
-A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that removes the Reset Scale functionality from the built in context menu button. This allows you to lock your scale whenever you want. Restoring the reset scale functionality is left as an exercise for the user. If you wish to do it via creating a context menu button, here are the details to replicate the vanilla behavior:
+A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that removes the Reset Scale functionality from the built in context menu button. This allows you to lock your scale whenever you want. 
+
+Relevant Neos issue: [#3505](https://github.com/Neos-Metaverse/NeosPublic/issues/3505)
+
+Restoring the reset scale functionality is left as an exercise for the user. If you wish to do it via creating a context menu button, here are the details to replicate the vanilla behavior:
 | Field | Value |
 | - | - |
 | Label | `Interaction.ResetScale` (locale string) or `Reset Scale` (English) |
