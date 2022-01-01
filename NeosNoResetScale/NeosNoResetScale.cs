@@ -25,6 +25,7 @@ namespace NeosNoResetScale
         {
             Harmony harmony = new Harmony("net.michaelripley.NeosNoResetScale");
 
+            // a function call we'll be searching for later
             _startTask = AccessTools.DeclaredMethod(typeof(Worker), nameof(Worker.StartTask), new Type[] { typeof(Func<Task>) });
             if (_startTask == null)
             {
@@ -32,6 +33,7 @@ namespace NeosNoResetScale
                 return;
             }
 
+            // another function call we'll be searching for later
             _isAtScale = AccessTools.DeclaredMethod(typeof(UserRoot), nameof(UserRoot.IsAtScale), new Type[] { typeof(float) });
             if (_isAtScale == null)
             {
@@ -39,6 +41,7 @@ namespace NeosNoResetScale
                 return;
             }
 
+            // where we start reading IL from
             MethodInfo openContextMenu = AccessTools.DeclaredMethod(typeof(CommonTool), "OpenContextMenu");
             if (openContextMenu == null)
             {
@@ -46,6 +49,7 @@ namespace NeosNoResetScale
                 return;
             }
 
+            // constructor for our target async method body
             MethodInfo asyncMethodConstructor = FindAsyncMethod(PatchProcessor.GetOriginalInstructions(openContextMenu));
             if (asyncMethodConstructor == null)
             {
@@ -54,6 +58,7 @@ namespace NeosNoResetScale
             }
             Debug($"Found async method constructor: \"{asyncMethodConstructor.FullDescription()}\"");
 
+            // helpful attribute that points us to the async method body
             AsyncStateMachineAttribute asyncAttribute = (AsyncStateMachineAttribute)asyncMethodConstructor.GetCustomAttribute(typeof(AsyncStateMachineAttribute));
             if (asyncAttribute == null)
             {
@@ -61,18 +66,20 @@ namespace NeosNoResetScale
                 return;
             }
 
-            MethodInfo asyncMethod = AccessTools.DeclaredMethod(asyncAttribute.StateMachineType, "MoveNext", new Type[] { });
-            if (asyncMethod == null)
+            // our actual async method body we want to patch
+            MethodInfo asyncMethodBody = AccessTools.DeclaredMethod(asyncAttribute.StateMachineType, "MoveNext", new Type[] { });
+            if (asyncMethodBody == null)
             {
                 Error("Could not find target async block in CommonTool.OpenContextMenu(*)");
                 return;
             }
             // should be FrooxEngine.CommonTool.'<>c__DisplayClass333_0'.'<<OpenContextMenu>b__0>d'.MoveNext()
-            Debug($"Found async method: \"{asyncMethod.FullDescription()}\"");
+            Debug($"Found async method: \"{asyncMethodBody.FullDescription()}\"");
 
-            harmony.Patch(asyncMethod, transpiler: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(NeosNoResetScale), nameof(Transpiler))));
+            harmony.Patch(asyncMethodBody, transpiler: new HarmonyMethod(AccessTools.DeclaredMethod(typeof(NeosNoResetScale), nameof(Transpiler))));
         }
 
+        // search for StartTask((Func<Task>) (async () => {...})) and grab the async method
         private static MethodInfo FindAsyncMethod(List<CodeInstruction> instructions)
         {
             List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
@@ -80,6 +87,7 @@ namespace NeosNoResetScale
             {
                 if (codes[callIdx].Calls(_startTask))
                 {
+                    // idx-5 should be enough instructions to search to fiund the ldftn we're looking for
                     for (int ldftnIdx = callIdx - 1; ldftnIdx >= Math.Max(0, callIdx - 5); ldftnIdx--)
                     {
                         if (codes[ldftnIdx].opcode.Equals(OpCodes.Ldftn))
@@ -93,6 +101,7 @@ namespace NeosNoResetScale
             return null;
         }
 
+        // search for IL matching if(FrooxEngine.UserRoot::IsAtScale) and make it unconditionally take the true branch
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             Debug($"There are {instructions.Count()} instructions");
@@ -104,11 +113,8 @@ namespace NeosNoResetScale
 
                 if (call.Calls(_isAtScale) && branch.opcode.Equals(OpCodes.Brfalse_S))
                 {
-                    // replace the brfalse with an (unconditional) br
-                    codes[idx] = new CodeInstruction(OpCodes.Br_S, branch.operand);
-
-                    // insert a pop right before our new BR
-                    codes.Insert(idx, new CodeInstruction(OpCodes.Pop));
+                    // replace the brfalse.s with a pop, which makes it always take the true branch.
+                    codes[idx] = new CodeInstruction(OpCodes.Pop);
 
                     Msg("Transpiler succeeded");
                     return codes.AsEnumerable();
